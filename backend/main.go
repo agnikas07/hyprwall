@@ -48,31 +48,58 @@ func setWallpaperHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filePath := filepath.Join(cacheDir, id+".jpg")
+	fmt.Printf("\n--- NEW WALLPAPER REQUEST ---\n")
+	fmt.Printf("1. Target ID: %s\n", id)
+	fmt.Printf("2. Downloading from: %s\n", imgUrl)
+
+	req, _ := http.NewRequest("GET", imgUrl, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("❌ Network Error: %v\n", err)
+		http.Error(w, "Failed to connect to Wallhaven", http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("❌ Wallhaven rejected the download! HTTP Status: %d\n", resp.StatusCode)
+		http.Error(w, "Wallhaven rejected the request", http.StatusInternalServerError)
+		return
+	}
+
+	ext := filepath.Ext(imgUrl)
+	if ext == "" {
+		ext = ".jpg"
+	}
+
+	filePath := filepath.Join(cacheDir, id+ext)
 	out, err := os.Create(filePath)
 	if err != nil {
+		fmt.Printf("❌ Failed to create local file: %v\n", err)
 		http.Error(w, "Failed to create file", http.StatusInternalServerError)
 		return
 	}
-	defer out.Close()
 
-	resp, err := http.Get(imgUrl)
-	if err != nil {
-		http.Error(w, "Failed to download image", http.StatusInternalServerError)
-		return
-	}
-
-	defer resp.Body.Close()
 	io.Copy(out, resp.Body)
+	out.Close()
 
-	cmd := exec.Command("awww", "img", filePath, "--transition-type", "wipe", "--transition-angle", "30", "--transition-step", "90")
-	err = cmd.Run()
+	fmt.Printf("3. Saved successfully to: %s\n", filePath)
+
+	scriptPath := "/home/agnikas/.config/quickshell/ii/scripts/colors/switchwall.sh"
+	cmd := exec.Command(scriptPath, filePath)
+	output, err := cmd.CombinedOutput()
 
 	if err != nil {
-		fmt.Println("Error setting wallpaper:", err)
+		fmt.Printf("❌ awww failed! Exit Status: %v\n", err)
+		fmt.Printf("❌ awww Output: %s\n", string(output))
 		http.Error(w, "Failed to set wallpaper", http.StatusInternalServerError)
 		return
 	}
+
+	fmt.Printf("✅ Wallpaper successfully changed!\n-----------------------------\n")
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Wallpaper updated successfully"))

@@ -91,7 +91,9 @@ PanelWindow {
                     background: Item {}
                     
                     onAccepted: {
-                        fetchWallpapers("q=" + encodeURIComponent(text))
+                        if (text.trim() !== "") {
+                            fetchWallpapers("q=" + encodeURIComponent(text))
+                        }
                     }
                 }
 

@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,9 +27,22 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
 	color := r.URL.Query().Get("colors")
 
-	apiUrl := fmt.Sprintf("https://wallhaven.cc/api/v1/search?q=%s&colors=%s&sorting=random", query, color)
+	apiUrl, _ := url.Parse("https://wallhaven.cc/api/v1/search")
+	params := url.Values{}
 
-	resp, err := http.Get(apiUrl)
+	if query != "" {
+		params.Add("q", query)
+	}
+	if color != "" {
+		params.Add("colors", color)
+	}
+	params.Add("sorting", "random")
+
+	apiUrl.RawQuery = params.Encode()
+
+	fmt.Printf("🔍 Searching Wallhaven: %s\n", apiUrl.String())
+
+	resp, err := http.Get(apiUrl.String())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
